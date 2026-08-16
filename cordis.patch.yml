@@ -1,0 +1,7 @@
+# dsh-ssh-tunnel 宿主插件：SSH 隧道生命周期管理 + 远程命令/文件工具。
+# 隧道断线自动重连（supervisor 循环 + keepalive 参数）；ssh_run / ssh_push
+# 复用同一连接参数，避免手工拼 ssh 命令的引号/超时问题。
+# 配置示例见 README.md（tunnels 数组按实际主机增删）。
+- insert:
+    - id: ssh-tunnel
+      name: 'dsh-ssh-tunnel'

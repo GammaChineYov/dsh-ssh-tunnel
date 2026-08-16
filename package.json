@@ -1,0 +1,50 @@
+{
+  "name": "dsh-ssh-tunnel",
+  "version": "0.1.0",
+  "description": "DSH 插件：SSH 隧道管理（断线自动重连）+ 远程命令执行（ssh_run）/ 文件上传（ssh_push），配套会话头部 SSH 状态胶囊面板。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./client": "./lib/client.js"
+  },
+  "files": [
+    "lib/**/*.js",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "node --check lib/index.js && node --check lib/client.js",
+    "test": "node scripts/smoke-test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-schemastery": "^3.18.0",
+    "react": "^18.2.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GammaChineYov/dsh-ssh-tunnel"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
