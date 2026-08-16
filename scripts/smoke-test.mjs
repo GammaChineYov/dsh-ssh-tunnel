@@ -108,6 +108,46 @@ async function main() {
     check('T3.7 状态与统计', m.tunnels[0].status === 'up' && m.tunnels[0].restartCount === 1 && m.tunnels[0].pid === 7001 && !m.tunnels[0].adopted)
     const state = JSON.parse(fs.readFileSync(makeCfg().stateFile, 'utf8'))
     check('T3.8 状态持久化', state.tunnels['ecs-3080'].pid === 7001 && state.tunnels['ecs-3080'].restartCount === 1)
+    check('T3.9 StrictHostKeyChecking=accept-new', args.includes('StrictHostKeyChecking=accept-new'))
+    m.stopAll()
+  }
+
+  console.log('== T3b 非 22 端口：ssh 用 -p / scp 用 -P ==')
+  {
+    const spawned = []
+    const children = []
+    let probeUp = false
+    const cfg = makeCfg({ tunnels: [{
+      id: 'cont-2222', name: 'Container sshd', host: '127.0.0.1', user: 'root',
+      identityFile: '/root/.ssh/dsh-container', port: 2222, localPort: 13022, remotePort: 2222,
+    }] })
+    const m = new TunnelManager({}, cfg, {
+      sleepMs: 0.01,
+      probeFn: async () => { if (!probeUp) throw new Error('down'); return 2 },
+      spawnFn: (cmd, args) => {
+        spawned.push({ cmd, args })
+        const child = fakeChild(7301 + spawned.length)
+        children.push(child)
+        if (cmd === 'ssh' && args.includes('-N')) setTimeout(() => { probeUp = true }, 10)
+        return child
+      },
+    })
+    await m.ensure(m.tunnels[0])
+    const sshArgs = spawned[0].args.join(' ')
+    check('T3b.1 隧道 ssh 用 -p 2222', sshArgs.includes('-p 2222') && !sshArgs.includes('-P 2222'), sshArgs)
+    // ssh_run
+    const p1 = m.runCommand(m.tunnels[0], 'hostname', undefined)
+    setTimeout(() => children[1].emitClose(0), 5)
+    await p1
+    const runArgs = spawned[1].args.join(' ')
+    check('T3b.2 ssh_run 用 -p 2222', runArgs.includes('-p 2222') && !runArgs.includes('-P 2222'), runArgs)
+    // ssh_push → scp 用 -P 2222
+    const p2 = m.pushFile(m.tunnels[0], 'a.txt', '/tmp/a.txt', false)
+    setTimeout(() => children[2].emitClose(0), 5)
+    await p2
+    const scpArgs = spawned[2].args.join(' ')
+    check('T3b.3 ssh_push(scp) 用 -P 2222', scpArgs.includes('-P 2222') && !scpArgs.includes('-p 2222'), scpArgs)
+    check('T3b.4 view 含 port', m.view().tunnels[0].port === 2222)
     m.stopAll()
   }
 

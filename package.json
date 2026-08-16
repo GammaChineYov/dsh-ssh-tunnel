@@ -1,6 +1,6 @@
 {
   "name": "dsh-ssh-tunnel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH 插件：SSH 隧道管理（断线自动重连）+ 远程命令执行（ssh_run）/ 文件上传（ssh_push），配套会话头部 SSH 状态胶囊面板。",
   "type": "module",
   "main": "lib/index.js",
