@@ -22,7 +22,8 @@ dsh plugin --profile web add git+https://github.com/GammaChineYov/dsh-ssh-tunnel
 
 ```yaml
 # dsh-ssh-tunnel：SSH 隧道管理（断线自动重连 + ssh_run/ssh_push）
-# 生效条件：重启 dsh web。identityFile 为私钥绝对路径；localPort 为本地监听端口。
+# 生效条件：重启 dsh web。identityFile 为私钥绝对路径；localPort 为本地监听端口；
+# port 为 SSH 端口（默认 22；非 22 时 ssh 用 -p、scp 用 -P）。
 - id: ssh-tunnel
   config:
     tunnels:
@@ -83,8 +84,10 @@ ssh_push localPath="C:\x\lib\index.js" remotePath="/root/dsh-message-branch/lib/
 
 - **重连**：ssh 子进程退出即按退避（3s→6s→12s→24s→60s 封顶）自动重连；`ServerAliveInterval=25 / ServerAliveCountMax=4` 保活；
 - **收养**：宿主重启后按本地端口 TCP 探活，端口已通则标记 `adopted` 不重复 spawn（避免 `Address already in use`）；
-  停止收养隧道时用 `netstat -ano` 定位监听 PID 再 `taskkill /PID <pid> /F`；
+  停止收养隧道时用 `netstat -ano` 定位监听 PID 再 `taskkill /PID <pid> /F`（Windows）；
 - **持久化**：`~/.dsh/ssh-tunnel-state.json` 记录 pid/startedAt/restartCount，跨宿主重启累计；
+- **非 22 端口**（v0.1.1）：隧道条目可配 `port`（默认 22）。ssh 用 `-p`、**scp 用 `-P`**（scp 的小写 `-p` 是 preserve 属性，用错会连到默认 22 端口）；
+- **host key 处理**（v0.1.1）：统一加 `StrictHostKeyChecking=accept-new`——BatchMode 下新主机 host key 首次连接自动接受，不再出现 `Host key verification failed`，也无需手工 ssh-keyscan 写 known_hosts；
 - **无 PowerShell**：所有 spawn 都用参数数组直传（`ssh -i key -o BatchMode=yes ...`），命令作为单个参数交给远端 shell；
 - **样式**：client 全部 React 行内 style，零全局副作用（不注入 `<style>`，避免跨插件污染）。
 
