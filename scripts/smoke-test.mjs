@@ -135,19 +135,8 @@ async function main() {
     await m.ensure(m.tunnels[0])
     const sshArgs = spawned[0].args.join(' ')
     check('T3b.1 隧道 ssh 用 -p 2222', sshArgs.includes('-p 2222') && !sshArgs.includes('-P 2222'), sshArgs)
-    // ssh_run
-    const p1 = m.runCommand(m.tunnels[0], 'hostname', undefined)
-    setTimeout(() => children[1].emitClose(0), 5)
-    await p1
-    const runArgs = spawned[1].args.join(' ')
-    check('T3b.2 ssh_run 用 -p 2222', runArgs.includes('-p 2222') && !runArgs.includes('-P 2222'), runArgs)
-    // ssh_push → scp 用 -P 2222
-    const p2 = m.pushFile(m.tunnels[0], 'a.txt', '/tmp/a.txt', false)
-    setTimeout(() => children[2].emitClose(0), 5)
-    await p2
-    const scpArgs = spawned[2].args.join(' ')
-    check('T3b.3 ssh_push(scp) 用 -P 2222', scpArgs.includes('-P 2222') && !scpArgs.includes('-p 2222'), scpArgs)
-    check('T3b.4 view 含 port', m.view().tunnels[0].port === 2222)
+    // ssh_run / ssh_push 已拆到 dsh-ssh-pool（本包只保留隧道工具）
+    check('T3b.2 view 含 port', m.view().tunnels[0].port === 2222)
     m.stopAll()
   }
 
@@ -230,11 +219,14 @@ async function main() {
     m.stopAll()
   }
 
-  console.log('== T7 ssh_run：参数、输出、退出码、超时 ==')
+  console.log('== T7 反向隧道（-N -R）：参数与判活 ==')
   {
     const calls = []
     let childRef = null
-    const m = new TunnelManager({}, makeCfg(), {
+    const m = new TunnelManager({}, makeCfg({ tunnels: [{
+      id: 'rev', name: 'Reverse', host: '47.112.205.98', user: 'root',
+      identityFile: '/root/.ssh/key', direction: 'remote', localPort: 8080, localHost: '127.0.0.1', remotePort: 17890,
+    }] }), {
       sleepMs: 0.01,
       probeFn: async () => { throw new Error('down') },
       spawnFn: (cmd, args) => {
@@ -245,57 +237,16 @@ async function main() {
       },
     })
     const t = m.tunnels[0]
-    // 正常路径
-    const p1 = m.runCommand(t, 'echo hi && hostname', undefined)
-    setTimeout(() => {
-      childRef.writeOut('hi\nserver1\n')
-      childRef.emitClose(0)
-    }, 10)
-    const r1 = await p1
-    check('T7.1 返回 exitCode/stdout', r1.exitCode === 0 && r1.stdout === 'hi\nserver1\n', JSON.stringify(r1))
-    const args1 = calls[0].args
-    check('T7.2 ssh 参数含 BatchMode/ConnectTimeout/-i', args1.includes('-o') && args1.some(a => a.includes('BatchMode=yes')) && args1.some(a => a.includes('ConnectTimeout=2')))
-    check('T7.3 命令作为最后单参数', args1[args1.length - 1] === 'echo hi && hostname')
-    check('T7.4 无 -N -L（非隧道）', !args1.includes('-N') && !args1.includes('-L'))
-    // 错误路径
-    const p2 = m.runCommand(t, 'false', undefined)
-    setTimeout(() => childRef.emitClose(1), 10)
-    const r2 = await p2
-    check('T7.5 非零退出码透传', r2.exitCode === 1)
-    // stderr 回传
-    const p3 = m.runCommand(t, 'bad', undefined)
-    setTimeout(() => { childRef.writeErr('Permission denied (publickey)'); childRef.emitClose(255) }, 10)
-    const r3 = await p3
-    check('T7.6 stderr 回传', r3.exitCode === 255 && r3.stderr.includes('Permission denied'), JSON.stringify(r3))
-    // 超时
-    const p4 = m.runCommand(t, 'sleep 999', 100)
-    const r4 = await p4
-    check('T7.7 超时终止并标记', r4.timedOut === true && r4.exitCode === -1 && r4.stderr.includes('超时'), JSON.stringify(r4))
-    m.stopAll()
-  }
-
-  console.log('== T8 ssh_push：scp 参数 ==')
-  {
-    const calls = []
-    let childRef = null
-    const m = new TunnelManager({}, makeCfg(), {
-      sleepMs: 0.01,
-      probeFn: async () => { throw new Error('down') },
-      spawnFn: (cmd, args) => {
-        calls.push({ cmd, args })
-        const child = fakeChild(7500)
-        childRef = child
-        return child
-      },
-    })
-    const t = m.tunnels[0]
-    const p = m.pushFile(t, 'C:/x/y.js', '/root/y.js', true)
-    setTimeout(() => { childRef.writeErr('y.js 100%'); childRef.emitClose(0) }, 10)
-    const r = await p
-    check('T8.1 exitCode 0', r.exitCode === 0)
-    const args = calls[0].args
-    check('T8.2 scp -r -i + 目标', calls[0].cmd === 'scp' && args.includes('-r') && args.includes('-i') && args.some(a => a.includes('dsh-server')), JSON.stringify(args))
-    check('T8.3 本地/远程位置', args.some(a => a === 'C:/x/y.js') && args.some(a => a === 'root@47.112.205.98:/root/y.js'))
+    check('T7.1 默认按 local 方向映射', t.direction === 'remote')
+    // ensure 拉起：应组装 -N -R <remotePort>:<localHost>:<localPort>
+    const p = m.ensure(t)
+    setTimeout(() => childRef.emitClose(0), 10)
+    await p
+    const args0 = calls[0].args
+    const joined = args0.join(' ')
+    check('T7.2 -N -R 参数', args0.includes('-N') && args0.includes('-R') && joined.includes('17890:127.0.0.1:8080'), joined)
+    check('T7.3 不含 -L', !args0.includes('-L'))
+    check('T7.4 探活（remote）用进程存活而非端口', t.direction === 'remote')
     m.stopAll()
   }
 
@@ -326,7 +277,7 @@ async function main() {
     }
     apply(fakeCtx, makeCfg({ tunnels: [] }))
     const names = registeredTools.map(t => t.name)
-    check('T9.1 六个工具注册', ['ssh_tunnel_status', 'ssh_tunnel_start', 'ssh_tunnel_stop', 'ssh_tunnel_restart', 'ssh_run', 'ssh_push'].every(n => names.includes(n)), names.join(','))
+    check('T9.1 两个隧道工具注册', ['ssh_tunnel_status', 'ssh_tunnel_start', 'ssh_tunnel_stop', 'ssh_tunnel_restart'].every(n => names.includes(n)) && !names.includes('ssh_run') && !names.includes('ssh_push'), names.join(','))
     check('T9.2 系统提示段注册', sections.length === 1 && sections[0].name === 'ssh-tunnel' && sections[0].text.includes('ssh_tunnel_status'), sections.length + '')
     check('T9.3 HTTP 路由注册', routes.length === 1 && routes[0].path === '/ssh-tunnel/api', JSON.stringify(routes.map(r => r.path)))
 
@@ -338,14 +289,11 @@ async function main() {
     })
     const statusTool = registeredTools.find(t => t.name === 'ssh_tunnel_status')
     const startTool = registeredTools.find(t => t.name === 'ssh_tunnel_start')
-    const runTool = registeredTools.find(t => t.name === 'ssh_run')
     const s1 = await statusTool.execute({})
     // apply 实例用空隧道配置 → view 应含空 tunnels 数组（形状验证）
     check('T9.4 status 执行返回 view', s1 && Array.isArray(s1.tunnels) && s1.tunnels.length === 0, JSON.stringify(s1))
     const err = await startTool.execute({ tunnelId: 'nope' }).then(() => null, e => e)
     check('T9.5 start 未知隧道报错', err instanceof Error && String(err.message).includes('不存在'))
-    const runErr = await runTool.execute({}).then(() => null, e => e)
-    check('T9.6 run 缺 command 报错', runErr instanceof Error && String(runErr.message).includes('command'))
 
     // 回环守卫：非回环 host → 403
     const handler = routes[0].handler

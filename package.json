@@ -1,7 +1,7 @@
 {
   "name": "dsh-ssh-tunnel",
-  "version": "0.1.1",
-  "description": "DSH 插件：SSH 隧道管理（断线自动重连）+ 远程命令执行（ssh_run）/ 文件上传（ssh_push），配套会话头部 SSH 状态胶囊面板。",
+  "version": "0.1.2",
+  "description": "DSH 插件：SSH 隧道托盘（-N -L 正向 / -N -R 反向双向隧道管理，断线自动重连 + 宿主重启收养），仅管隧道连接生命周期（ssh_run/ssh_push 直控实例归 dsh-ssh-pool）。配套会话头部 SSH 状态胶囊面板。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -35,7 +35,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
     "@deepseek-ai/schemastery": "^3.18.0",
     "react": "^18.2.0"
   },
